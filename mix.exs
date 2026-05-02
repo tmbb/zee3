@@ -8,7 +8,23 @@ defmodule Zee3.MixProject do
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       compilers: Mix.compilers() ++ [:zee3],
-      deps: deps()
+      description: description(),
+      package: package(),
+      deps: deps(),
+    ]
+  end
+
+  def description do
+    "Bindings to the Z3 theorem prover."
+  end
+
+  defp package do
+    [
+      name: "zee3",
+      files: ~w(lib .formatter.exs mix.exs README* readme*
+                LICENSE* license* CHANGELOG* changelog* src),
+      licenses: ["BSD"],
+      links: %{"GitHub" => "https://github.com/tmbb/zee3"}
     ]
   end
 
@@ -23,7 +39,8 @@ defmodule Zee3.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.3"},
-      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
+      {:expublish, "~> 2.5", only: [:dev], runtime: false},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
   end
 end
