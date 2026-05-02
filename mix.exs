@@ -21,9 +21,9 @@ defmodule Zee3.MixProject do
   defp package do
     [
       name: "zee3",
-      files: ~w(lib .formatter.exs mix.exs README* readme*
-                LICENSE* license* CHANGELOG* changelog* src),
-      licenses: ["BSD"],
+      files: ~w(lib .formatter.exs mix.exs README*
+                LICENSE* CHANGELOG*),
+      licenses: ["BSD-3-Clause"],
       links: %{"GitHub" => "https://github.com/tmbb/zee3"}
     ]
   end
