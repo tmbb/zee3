@@ -258,4 +258,45 @@ defmodule Zee3.ProgramTest do
 
     assert result == :sat
   end
+
+  defmodule AltLib do
+    use Zee3.Defzee3
+    use Zee3.StdLib
+
+    @doc """
+    Defines a Z3 function, which can be invoked if the module
+    is used inside a program.
+    """
+    defzee3 funky_addition(a :: Sort.int(), b :: Sort.int()) :: Sort.int() do
+      a * b - 1
+    end
+  end
+
+  test "functions defined with defzee3 work", %{solver: solver} do
+    {{:sat, _model}, func_call} =
+      Zee3.program solver do
+        # TODO: find a better API than using the module
+        use Zee3.ProgramTest.AltLib, with_alias: AltLib
+
+        x = declare_const("x", Sort.int())
+        y = declare_const("y", Sort.int())
+
+        # When is funky addition equal to normal addition?
+        assert AltLib.funky_addition(x, y) == x + y
+
+        # Now, let's make sure `AltLib.funky_addition/2`
+        # returns a Z3 function call instead of expanding
+        # the function body itself.
+        # To do this, we will call the function and assign
+        # the result to a variable and outside the `Zee3.program`
+        # we will serialize the contents of the variable.
+        func_call = AltLib.funky_addition(x, y)
+
+        {check_sat_and_get_model!(), func_call}
+      end
+
+    # The function call returns the internal representation
+    # of a function call instead of expanding the
+    assert Smt2.serialize(func_call) == "(Zee3.ProgramTest.AltLib.funky_addition x y)"
+  end
 end

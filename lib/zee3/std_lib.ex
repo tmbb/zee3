@@ -12,10 +12,10 @@ defmodule Zee3.StdLib do
   into syntactically correct SMT-LIB2 code, which can be
   sent directly to the Z3 solver using the low-level API.
   """
-  require Zee3.Defzee3
+  require Zee3.StdLib.StdLibBuilder, as: StdLibBuilder
   alias Zee3.Smt2
 
-  Zee3.Defzee3.__defzee3_from_tsv_file__("lib/zee3/reference/functions.tsv")
+  StdLibBuilder.__build_from_tsv_file__("lib/zee3/reference/functions.tsv")
 
   # Functions we can't generate programmatically from
   # the TSV file above

@@ -36,6 +36,15 @@ defmodule Zee3.Program do
             Zee3.Solver.unquote(pid_call)(unquote(pid), unquote(timeout))
           end
 
+        {:use, meta, [module, [with_alias: module_alias]]} ->
+          # If the use macro doesn't have a single `:with_alias` option
+          # it is not transformed and is instead interpreted as a real
+          # use macro by the Macro expander.
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            require unquote(module), as: unquote(module_alias)
+            raw_smt2_code = unquote(module_alias).__use_zee3__()
+            Zee3.Solver.send_smt2_code(unquote(pid), raw_smt2_code)
+          end
 
         # 2. Declarations - declaring a variable which is not a normal variable
         {:declare_const, meta, [name, type]} ->
@@ -100,6 +109,11 @@ defmodule Zee3.Program do
 
             # Return an anonymous function the user can bind
             unquote(anonymous_function_ast)
+          end
+
+        {:send_smt2_code, meta, [code]} ->
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            Zee3.Solver.send_smt2_code(unquote(pid), unquote(code))
           end
 
         # 3. Assertions & Optimizations

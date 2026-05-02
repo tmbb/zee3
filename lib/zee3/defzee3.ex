@@ -1,8 +1,5 @@
 defmodule Zee3.Defzee3 do
-  defmodule FunctionDefinition do
-    @moduledoc false
-    defstruct [:function, :arity, :theories, :description]
-  end
+  alias Zee3.Defzee3.Zee3Def
 
   @doc """
   Defines an elixir function which seamlessly converts
@@ -24,251 +21,91 @@ defmodule Zee3.Defzee3 do
       end
   """
   defmacro defzee3(call, do: body) do
-    new_body = defzee3_body(call, body)
+    zee3_def = Zee3Def.from_ast(call, body)
+    arg_vars = Zee3Def.arg_vars(zee3_def)
+    arg_count = length(arg_vars)
+    # qualified_name = "#{inspect(__CALLER__.module)}.#{zee3_def.name}"
+    typed_args_smt2 = Zee3Def.typed_args_to_smt2(zee3_def)
 
     quote do
-      def unquote(call) do
-        unquote(new_body)
+      def unquote(zee3_def.name)(unquote_splicing(arg_vars)) do
+        Zee3.Smt2.call(
+          "#{@__zee3_function_prefix__}.#{unquote(zee3_def.name)}",
+          # We want the actual list of arguments (i.e. not a spliced list)
+          unquote(arg_vars)
+        )
       end
-    end
-  end
 
-  @function_blacklist ~w(= => true false)
-  @infix_operators ~w(and not < > <= >= + - * /)
+      def unquote(zee3_def.hidden_name)() do
+        # This "result" is the result of expanding the function body,
+        # in Smt2 format according to the body of the original function.
+        # Variables will evaluate to symbols.
+        result = unquote(zee3_def.body)
 
-  defp rename_problematic("re.++"), do: "re_concat"
-  defp rename_problematic("re.*"), do: "re_kleene_star"
-  defp rename_problematic("re.+"), do: "re_kleene_plus"
-  defp rename_problematic(other), do: other
+        Zee3.Smt2.call(
+          "define-fun",
+          [
+            Zee3.Smt2.symbol(
+              "#{@__zee3_function_prefix__}.#{unquote(zee3_def.name)}"
+            ),
+            unquote(typed_args_smt2),
+            unquote(zee3_def.result_type),
+            result
+          ]
+        )
+      end
 
-  # This function is hidden because there is no reason a user
-  # would actually call it. This function is just a shorthand
-  # to convert the TSV file we've got from asking the Gemini LLM
-  # to list all functions in the same place into actual function
-  # definitions. There is no reason to expect a user would have
-  # a TSV file with function definitions rather than just defining
-  # the functions themselves.
-
-  @doc false
-  defmacro __defzee3_from_tsv_file__(path) do
-    contents = File.read!(path)
-    lines = String.split(contents, "\n")
-
-    # All rows including the header
-    all_rows =
-      Enum.map(lines, fn line ->
-        line
-        |> String.trim()
-        |> String.split("\t")
-      end)
-
-    # Remove the header
-    rows = Enum.drop(all_rows, 1)
-
-    all_definitions =
-      Enum.map(rows, fn row ->
-        [function, arity, theory, description] = row
-
-        {arity, ""} = Integer.parse(arity)
-
-        %FunctionDefinition{
-          function: function,
-          arity: arity,
-          theories: [theory],
-          description: description
+      Module.put_attribute(
+        __MODULE__,
+        :__zee3_defs__,
+        {
+          {unquote(zee3_def.name), unquote(arg_count)},
+          unquote(zee3_def.hidden_name)
         }
-      end)
-
-    grouped_definitions =
-      Enum.group_by(all_definitions, fn d ->
-        {d.function, d.arity}
-      end)
-
-    merged_definitions =
-      Enum.map(grouped_definitions, fn {{_, _}, defs} ->
-        Enum.reduce(defs, fn def, merged ->
-          %{merged | theories: merged.theories ++ [def.theories]}
-        end)
-      end)
-
-    for definition <- merged_definitions,
-        definition.function not in @function_blacklist do
-      ast_from_data(definition)
+      )
     end
   end
 
-  defp ast_from_data(definition) do
-    arity = definition.arity
-    original_function = definition.function
+  defmacro __using__(opts \\ []) do
+    caller_module = __CALLER__.module
+    function_prefix = Keyword.get(opts, :prefix, inspect(caller_module))
 
-    function =
-      original_function
-      |> rename_problematic()
-      |> String.replace(".", "_")
+    quote do
+      import Zee3.Defzee3, only: [defzee3: 2]
 
-    function_atom = String.to_atom(function)
+      @__zee3_function_prefix__ unquote(function_prefix)
 
-    theories_text = Enum.intersperse(definition.theories, ", ")
+      Module.register_attribute(
+        unquote(caller_module),
+        :__zee3_defs__,
+        accumulate: true
+      )
 
-    docstring = """
-      #{definition.description}.
+      @before_compile Zee3.Defzee3
 
-      *Theories*: #{theories_text}.
-      """
+      defmacro __use_zee3__() do
+        # Function defined by the @before_compile hook
+        smt2_terms =
+          for {{_fun, _arity}, hidden_fun} <- __zee3_defs__() do
+            apply(__MODULE__, hidden_fun, [])
+          end
 
-    case arity do
-      0 ->
+        serialized = Enum.map(smt2_terms, fn term ->
+          [Zee3.Smt2.serialize(term), "\n"] end
+        )
+
         quote do
-          @doc unquote(docstring)
-          def unquote(function_atom)() do
-            %Zee3.Smt2.Symbol{value: unquote(original_function)}
-          end
-        end
-
-      1 ->
-        quote do
-          # No need to use defzee3, we can prove that everything
-          # is converted because we're feeding things through `Zee3.Smt2.call/2`.
-          @doc unquote(docstring)
-          @spec unquote(function_atom)(Zee3.Smt2.smt2_like()) :: Zee3.Smt2.t()
-          def unquote(function_atom)(arg) do
-            Zee3.Smt2.call(unquote(original_function), [arg])
-          end
-        end
-
-      2 ->
-        quote do
-          # No need to use defzee3, we can prove that everything
-          # is converted because we're feeding things through `Zee3.Smt2.call/2`.
-          @doc unquote(docstring)
-          @spec unquote(function_atom)(
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like()
-              ) :: Zee3.Smt2.t()
-          def unquote(function_atom)(lhs, rhs) do
-            Zee3.Smt2.call(unquote(original_function), [lhs, rhs])
-          end
-        end
-
-      3 ->
-        quote do
-          # No need to use defzee3, we can prove that everything
-          # is converted because we're feeding things through `Zee3.Smt2.call/2`.
-          @doc unquote(docstring)
-          @spec unquote(function_atom)(
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like()
-              ) :: Zee3.Smt2.t()
-          def unquote(function_atom)(a, b, c) do
-            Zee3.Smt2.call(unquote(original_function), [a, b, c])
-          end
-        end
-
-      4 ->
-        quote do
-          # No need to use defzee3, we can prove that everything
-          # is converted because we're feeding things through `Zee3.Smt2.call/2`.
-          @doc unquote(docstring)
-          @spec unquote(function_atom)(
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like()
-              ) :: Zee3.Smt2.t()
-          def unquote(function_atom)(a, b, c, d) do
-            Zee3.Smt2.call(unquote(original_function), [a, b, c, d])
-          end
-        end
-
-      -1 ->
-        if function in @infix_operators do
-          # Whitelist infix operators to keep them binary
-          docstring =
-            docstring
-            |> String.replace(
-              " (variadic chain)",
-              " (compiles to variadic chain if possible)"
-            )
-            |> String.replace(
-              " (variadic)",
-              " (compiles to variadic chain if possible)"
-            )
-
-          quote do
-            @doc unquote(docstring)
-            @spec unquote(function_atom)(
-                Zee3.Smt2.smt2_like(),
-                Zee3.Smt2.smt2_like()
-              ) :: Zee3.Smt2.t()
-            def unquote(function_atom)(lhs, rhs) do
-              # Convert the arguments manually; no need to overcomplicate
-              # the definition by reusing the `zee3_body/2` function.
-              lhs = Zee3.Smt2.to_smt2(lhs)
-              rhs = Zee3.Smt2.to_smt2(rhs)
-
-              case {lhs, rhs} do
-                # Case 1: merge operator chains
-                {
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | _lhs_args],
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | rhs_args]
-                } ->
-                  lhs ++ rhs_args
-
-                # Case 2: left hand side is an operator chain; merge the righ hand side
-                {
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | _lhs_args],
-                  rhs
-                } ->
-                  lhs ++ [rhs]
-
-                # Case 3: right hand side is an operator chain; merge the left hand side
-                {
-                  lhs,
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | rhs_args],
-                } ->
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)}, lhs | rhs_args]
-
-                # Case 4: no chains to merge
-                _other ->
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)}, lhs, rhs]
-              end
-            end
-          end
-        else
-          # Make all other variadic functions take a list.
-          quote do
-            @doc unquote(docstring)
-            @spec unquote(function_atom)(list(Zee3.Smt2.smt2_like())) :: Zee3.Smt2.t()
-            def unquote(function_atom)(args) do
-              # The `Zee3.Smt2.call/2` function will convert our types for us
-              Zee3.Smt2.call(unquote(original_function), args)
-            end
-          end
-        end
-    end
-  end
-
-  defp defzee3_body(call, body) do
-    # Convert the arguments of the function into `Zee3.Smt2.t()`
-    # inside the body so that other functions can use them
-    # without worrying about converting them
-
-    {_f, args} = Macro.decompose_call(call)
-
-    arg_reassignments =
-      for arg <- args do
-        case arg do
-          {_name, _meta, ctx} when is_atom(ctx) ->
-            quote do
-              unquote(arg) = Zee3.Smt2.to_smt2(unquote(arg))
-            end
-
-          _other ->
-            raise "Invalid argument format for function `#{Macro.to_string(call)}`"
+          unquote(serialized)
         end
       end
+    end
+  end
 
-    {:__block__, [], arg_reassignments ++ [body]}
+  defmacro __before_compile__(_env) do
+    quote do
+      def __zee3_defs__() do
+        @__zee3_defs__
+      end
+    end
   end
 end

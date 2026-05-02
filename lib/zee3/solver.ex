@@ -144,12 +144,12 @@ defmodule Zee3.Solver do
   If you need these values to be available, use the `declare-const/2`
   and `declare-fun/3` functions explicitly.
   """
-  def send_raw(pid, input) do
-    GenServer.call(pid, {:send_raw, input})
+  def send_smt2_code(pid, input) do
+    GenServer.call(pid, {:send_smt2_code, input})
   end
 
   @impl true
-  def handle_call({:send_raw, input}, _from, state) do
+  def handle_call({:send_smt2_code, input}, _from, state) do
     # Send the raw text and don't mutate the text
     Port.command(state.port, [input, "\n"])
     {:reply, :ok, state}
