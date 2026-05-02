@@ -1,0 +1,124 @@
+Function Name	Arity	Theory	Description
+true	0	Core	Boolean constant true
+false	0	Core	Boolean constant false
+not	1	Core	Logical negation
+=>	-1	Core	Logical implication (variadic)
+and	-1	Core	Logical AND (variadic)
+or	-1	Core	Logical OR (variadic)
+xor	-1	Core	Logical exclusive OR (variadic)
+=	-1	Core	Equality (variadic)
+distinct	-1	Core	Mutually distinct (variadic)
+ite	3	Core	If-then-else conditional
+-	1	Ints	Unary arithmetic negation
+-	-1	Ints	Binary/variadic subtraction
++	-1	Ints	Addition (variadic)
+*	-1	Ints	Multiplication (variadic)
+div	2	Ints	Euclidean integer division
+mod	2	Ints	Euclidean integer remainder
+abs	1	Ints	Absolute value
+<=	-1	Ints	Less than or equal (variadic chain)
+<	-1	Ints	Less than (variadic chain)
+>=	-1	Ints	Greater than or equal (variadic chain)
+>	-1	Ints	Greater than (variadic chain)
+-	1	Reals	Unary arithmetic negation
+-	-1	Reals	Binary/variadic subtraction
++	-1	Reals	Addition (variadic)
+*	-1	Reals	Multiplication (variadic)
+/	-1	Reals	Division (variadic)
+<=	-1	Reals	Less than or equal (variadic chain)
+<	-1	Reals	Less than (variadic chain)
+>=	-1	Reals	Greater than or equal (variadic chain)
+>	-1	Reals	Greater than (variadic chain)
+to_real	1	Reals_Ints	Cast integer to real
+to_int	1	Reals_Ints	Cast real to integer
+is_int	1	Reals_Ints	Check if real is an integer
+select	2	ArraysEx	Read value from array at index
+store	3	ArraysEx	Write value to array at index
+concat	2	FixedSizeBitVectors	Concatenate two bitvectors
+extract	1	FixedSizeBitVectors	Extract sub-vector (indices passed in symbol)
+bvnot	1	FixedSizeBitVectors	Bitwise NOT
+bvneg	1	FixedSizeBitVectors	Two's complement negation
+bvand	2	FixedSizeBitVectors	Bitwise AND
+bvor	2	FixedSizeBitVectors	Bitwise OR
+bvadd	2	FixedSizeBitVectors	Addition
+bvmul	2	FixedSizeBitVectors	Multiplication
+bvudiv	2	FixedSizeBitVectors	Unsigned division
+bvurem	2	FixedSizeBitVectors	Unsigned remainder
+bvsdiv	2	FixedSizeBitVectors	Signed division
+bvsrem	2	FixedSizeBitVectors	Signed remainder
+bvsmod	2	FixedSizeBitVectors	Signed modulo
+bvshl	2	FixedSizeBitVectors	Logical shift left
+bvlshr	2	FixedSizeBitVectors	Logical shift right
+bvashr	2	FixedSizeBitVectors	Arithmetic shift right
+bvult	2	FixedSizeBitVectors	Unsigned less than
+bvule	2	FixedSizeBitVectors	Unsigned less than or equal
+bvugt	2	FixedSizeBitVectors	Unsigned greater than
+bvuge	2	FixedSizeBitVectors	Unsigned greater than or equal
+bvslt	2	FixedSizeBitVectors	Signed less than
+bvsle	2	FixedSizeBitVectors	Signed less than or equal
+bvsgt	2	FixedSizeBitVectors	Signed greater than
+bvsge	2	FixedSizeBitVectors	Signed greater than or equal
+bvcomp	2	FixedSizeBitVectors	Bit vector comparison
+bvxor	2	FixedSizeBitVectors	Bitwise XOR
+bvnand	2	FixedSizeBitVectors	Bitwise NAND
+bvnor	2	FixedSizeBitVectors	Bitwise NOR
+bvxnor	2	FixedSizeBitVectors	Bitwise XNOR
+bvsub	2	FixedSizeBitVectors	Subtraction
+str.++	-1	Strings	String concatenation (variadic)
+str.len	1	Strings	String length
+str.<	2	Strings	Lexicographical less than
+str.<=	2	Strings	Lexicographical less than or equal
+str.to_re	1	Strings	Convert string to regex
+str.in_re	2	Strings	Check if string matches regex
+str.to_int	1	Strings	Convert string to integer
+int.to_str	1	Strings	Convert integer to string
+str.substr	3	Strings	Extract substring (string, offset, length)
+str.indexof	3	Strings	Find index of substring after offset
+str.replace	3	Strings	Replace first occurrence
+str.prefixof	2	Strings	Check if string is prefix
+str.suffixof	2	Strings	Check if string is suffix
+str.contains	2	Strings	Check if string contains substring
+str.replace_all	3	Strings	Replace all occurrences
+str.replace_re	3	Strings	Replace first regex match
+str.replace_re_all	3	Strings	Replace all regex matches
+re.none	0	Strings	Empty regex language
+re.all	0	Strings	Regex language of all strings
+re.allchar	0	Strings	Regex matching any single character
+re.++	-1	Strings	Regex concatenation (variadic)
+re.union	-1	Strings	Regex union (variadic)
+re.inter	-1	Strings	Regex intersection (variadic)
+re.*	1	Strings	Kleene star
+re.+	1	Strings	Kleene plus
+re.opt	1	Strings	Optional regex
+re.range	2	Strings	Character range
+re.comp	1	Strings	Regex complement
+fp	3	FloatingPoint	Floating point constructor from BVs
+fp.abs	1	FloatingPoint	Absolute value
+fp.neg	1	FloatingPoint	Negation
+fp.add	3	FloatingPoint	Addition (requires rounding mode)
+fp.sub	3	FloatingPoint	Subtraction (requires rounding mode)
+fp.mul	3	FloatingPoint	Multiplication (requires rounding mode)
+fp.div	3	FloatingPoint	Division (requires rounding mode)
+fp.fma	4	FloatingPoint	Fused multiply-add (requires rounding mode)
+fp.sqrt	2	FloatingPoint	Square root (requires rounding mode)
+fp.rem	2	FloatingPoint	Remainder
+fp.roundToIntegral	2	FloatingPoint	Round to integral (requires rounding mode)
+fp.min	2	FloatingPoint	Minimum
+fp.max	2	FloatingPoint	Maximum
+fp.leq	2	FloatingPoint	Less than or equal
+fp.lt	2	FloatingPoint	Less than
+fp.geq	2	FloatingPoint	Greater than or equal
+fp.gt	2	FloatingPoint	Greater than
+fp.eq	2	FloatingPoint	Equality
+fp.isNormal	1	FloatingPoint	Is normal
+fp.isSubnormal	1	FloatingPoint	Is subnormal
+fp.isZero	1	FloatingPoint	Is zero
+fp.isInfinite	1	FloatingPoint	Is infinite
+fp.isNaN	1	FloatingPoint	Is Not a Number
+fp.isNegative	1	FloatingPoint	Is negative
+fp.isPositive	1	FloatingPoint	Is positive
+to_fp	2	FloatingPoint	Convert to float (requires rounding mode)
+to_fp_unsigned	2	FloatingPoint	Convert unsigned BV to float
+fp.to_ubv	2	FloatingPoint	Convert to unsigned bitvector (requires rounding mode)
+fp.to_sbv	2	FloatingPoint	Convert to signed bitvector (requires rounding mode)
+fp.to_real	1	FloatingPoint	Convert to real
