@@ -22,20 +22,33 @@ defmodule Zee3.ProgramTest do
 
     {:sat, model} =
       Zee3.program pid do
+        # Declare integer constants
+        # Note: there is nothing special with the `Sort.int()` function call,
+        # the `Sort` module is just the `Zee3.StdLib.Sort` module, which the
+        # `Zee3.program` macro aliases inside the body so we can refer to it
+        # without needing to alias it ourselves.
         a = declare_const("a", Sort.int())
         b = declare_const("b", Sort.int())
 
+        # Declare a function that takes two integers and returns an integer
         f = declare_fun("f", [Sort.int(), Sort.int()], Sort.int())
 
-        # Z3 assertion; unrelated to ExUnit
+        # Assert a constraint (note that Zee3 recognizes literal integers correctly)
         assert f.(a, b) == -5
+        # Assert a new constraint, using a variable defined outside of the program
         assert f.(a, b) + f.(b, a) == zero
+        # Note: the `assert/2` above is a Z3 assertion, not an ExUnit assertion.
 
+        # Check for satisfiability and get the model if satisfiable
         check_sat_and_get_model!()
       end
 
     # "normal" assert, taken from ExUnit and unrelated to Z3
     assert model["f"].(model["b"], model["a"]) == 5
+    # Note that the `model["f"]` is an actual anonymous function
+    # which can be called from Elixir like any other function
+    # (of course this function only takes "intersting" values
+    # in the values we assert in the program)
   end
 
   test "solves basic integers and booleans", %{solver: solver} do
@@ -136,13 +149,30 @@ defmodule Zee3.ProgramTest do
   test "for loops work inside the program", %{solver: solver} do
     {:sat, model} =
       Zee3.program solver do
+        # Dynacmially create a number of variables and store them
+        # in a list. In this case, we create 10 variables, with
+        # names of the form x_i (for i in 1..10).
         xs =
           for i <- 1..10 do
+            # Note that there is nothing special about the first
+            # argument of `declare_const/2`, which can be anything
+            # that returns a string.
             _x_i = declare_const("x_#{i}", Sort.int())
           end
 
+        # Assert that they sum to 10.
+        # Where does the `sum/1` function come from?
+        # It's just a function that the `Zee3.StdLib` module defines
+        # and imports inside the program. You can easily define your
+        # own functions and use them inside the program, as long
+        # as the functions return the right format, as documented
+        # elsewhere
         assert sum(xs) == 10
 
+        # Assert pairwise comparisons between all the variables.
+        # Note: there is actually a built in for this, but we really
+        # wanted to show that we can use for loops and normal Elixir
+        # functions without any issues
         for {x_i, x_i_plus_1} <- Enum.zip(Enum.drop(xs, 1), xs) do
           assert x_i == x_i_plus_1
         end
@@ -150,6 +180,8 @@ defmodule Zee3.ProgramTest do
         check_sat_and_get_model!()
       end
 
+    # Asert that all variables exist and are set to the only
+    # value that satisfies the given constraints
     assert model["x_1"] == 1
     assert model["x_2"] == 1
     assert model["x_3"] == 1
@@ -163,6 +195,18 @@ defmodule Zee3.ProgramTest do
   end
 
   test "forgets constraints and variables whe popped", %{solver: solver} do
+    # We want to check for the satisfiability of two different
+    # constraint systems using the `push()` and `pop()` functions
+    # to add and remove new constraints.
+    #
+    # Because we have two different satisfiability results,
+    # we need to return the result of *two different*
+    # `check_sat_and_get_model!()`.
+    #
+    # This is absolutely not a problem, because the `Zee3.program`
+    # respects Elixir's semantics around variable assignment and
+    # we can simply assign the results to variables, or save them
+    # in a map, or whatevet, and simply return the results at the end.
     {result_1, result_2} =
       Zee3.program solver do
         a = declare_const("a", Sort.int())
