@@ -1,4 +1,6 @@
 defmodule Zee3.StdLib.StdLibBuilder do
+  @moduledoc false
+
   defmodule FunctionDefinition do
     @moduledoc false
     defstruct [:function, :arity, :theories, :description]
@@ -187,28 +189,60 @@ defmodule Zee3.StdLib.StdLibBuilder do
               case {lhs, rhs} do
                 # Case 1: merge operator chains
                 {
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | _lhs_args],
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | rhs_args]
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)} |
+                      _lhs_args
+                    ] = lhs_items
+                  },
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)} |
+                      rhs_args
+                    ]
+                  }
                 } ->
-                  lhs ++ rhs_args
+                  %Zee3.Smt2.List{value: lhs_items ++ rhs_args}
 
                 # Case 2: left hand side is an operator chain; merge the righ hand side
                 {
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | _lhs_args],
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)} |
+                      _lhs_args
+                    ] = lhs_items
+                  },
                   rhs
                 } ->
-                  lhs ++ [rhs]
+                  %Zee3.Smt2.List{value: lhs_items ++ [rhs]}
 
                 # Case 3: right hand side is an operator chain; merge the left hand side
                 {
                   lhs,
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)} | rhs_args],
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)} |
+                      rhs_args
+                    ]
+                  },
                 } ->
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)}, lhs | rhs_args]
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)},
+                      lhs |
+                      rhs_args
+                    ]
+                  }
 
                 # Case 4: no chains to merge
                 _other ->
-                  [%Zee3.Smt2.Symbol{value: unquote(original_function)}, lhs, rhs]
+                  %Zee3.Smt2.List{
+                    value: [
+                      %Zee3.Smt2.Symbol{value: unquote(original_function)},
+                      lhs,
+                      rhs
+                    ]
+                  }
               end
             end
           end

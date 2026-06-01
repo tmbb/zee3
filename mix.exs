@@ -39,6 +39,7 @@ defmodule Zee3.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.3"},
+      {:libgraph, "~> 0.16", only: [:test]},
       {:expublish, "~> 2.5", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]

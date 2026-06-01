@@ -8,7 +8,14 @@ defmodule Zee3.Solver do
   defstruct port: nil,
             caller: nil,
             buffer: "",
+            next_entity_id: 0,
+            entity_to_id: %{},
+            id_to_entity: %{},
             scopes: [Scope.empty()]
+
+  defp timeout_from_opts(opts) do
+    Keyword.get(opts, :timeout, :infinity)
+  end
 
   # --- Client API ---
 
@@ -24,8 +31,38 @@ defmodule Zee3.Solver do
     GenServer.call(pid, {:declare_fun, name, param_types, return_type})
   end
 
+  def declare_rel(pid, name, param_types) do
+    GenServer.call(pid, {:declare_rel, name, param_types})
+  end
+
+  def declare_var(pid, name, type) do
+    GenServer.call(pid, {:declare_var, name, type})
+  end
+
+  def rule(pid, body) do
+    GenServer.call(pid, {:rule, body})
+  end
+
+  def query(pid, name, opts \\ []) do
+    timeout = timeout_from_opts(opts)
+    GenServer.call(pid, {:query, name}, timeout)
+  end
+
+  def query!(pid, name, opts \\ []) do
+    case query(pid, name, opts) do
+      {:ok, result} ->
+        result
+
+      # TODO: add error branch
+    end
+  end
+
   def assert(pid, constraint) do
     GenServer.cast(pid, {:send, "(assert #{constraint})"})
+  end
+
+  def entity_id(pid, value) do
+    GenServer.call(pid, {:entity_id, value})
   end
 
   @doc """
@@ -43,12 +80,13 @@ defmodule Zee3.Solver do
     GenServer.call(pid, :pop)
   end
 
-  def check_sat_and_get_model(pid, timeout \\ :infinity) do
+  def check_sat_and_get_model(pid, opts \\ []) do
+    timeout = timeout_from_opts(opts)
     GenServer.call(pid, :check_sat_and_get_model, timeout)
   end
 
-  def check_sat_and_get_model!(pid, timeout \\ :infinity) do
-    case check_sat_and_get_model(pid, timeout) do
+  def check_sat_and_get_model!(pid, opts \\ []) do
+    case check_sat_and_get_model(pid, opts) do
       {:ok, result} ->
         result
 
@@ -56,12 +94,13 @@ defmodule Zee3.Solver do
     end
   end
 
-  def check_sat(pid, timeout \\ :infinity) do
+  def check_sat(pid, opts \\ []) do
+    timeout = timeout_from_opts(opts)
     GenServer.call(pid, :check_sat, timeout)
   end
 
-  def check_sat!(pid, timeout \\ :infinity) do
-    case check_sat(pid, timeout) do
+  def check_sat!(pid, opts \\ []) do
+    case check_sat(pid, opts) do
       {:ok, result} ->
         result
 
@@ -144,15 +183,8 @@ defmodule Zee3.Solver do
   If you need these values to be available, use the `declare-const/2`
   and `declare-fun/3` functions explicitly.
   """
-  def send_smt2_code(pid, input) do
-    GenServer.call(pid, {:send_smt2_code, input})
-  end
-
-  @impl true
-  def handle_call({:send_smt2_code, input}, _from, state) do
-    # Send the raw text and don't mutate the text
-    Port.command(state.port, [input, "\n"])
-    {:reply, :ok, state}
+  def eval_smt2_code(pid, input) do
+    GenServer.call(pid, {:eval_smt2_code, input})
   end
 
   @impl true
@@ -174,6 +206,30 @@ defmodule Zee3.Solver do
     }
 
     {:reply, :ok, %{state | scopes: [updated_scope | older_scopes]}}
+  end
+
+  @impl true
+  def handle_call({:entity_id, value}, _from, state) do
+    case Map.fetch(state.entity_to_id, value) do
+      :error ->
+        current_bit_vec_id = raw_bit_vec32_from_integer(state.next_entity_id)
+        next_id = state.next_entity_id + 1
+        # Add the new entity_id to the list of mapped entity_to_id
+        new_entity_to_id = Map.put(state.entity_to_id, value, current_bit_vec_id)
+        new_id_to_entity = Map.put(state.id_to_entity, current_bit_vec_id, value)
+        # Update the state with the new entity_id
+        new_state = %{
+          state |
+          next_entity_id: next_id,
+          entity_to_id: new_entity_to_id,
+          id_to_entity: new_id_to_entity
+        }
+
+        {:reply, Smt2.bit_vec(current_bit_vec_id), new_state}
+
+      {:ok, entity_id} ->
+        {:reply, Smt2.bit_vec(entity_id), state}
+    end
   end
 
   @impl true
@@ -200,6 +256,38 @@ defmodule Zee3.Solver do
   end
 
   @impl true
+  def handle_call({:declare_rel, name, params}, _from, state) do
+    joined_params = Enum.join(params, " ")
+    Port.command(state.port, "(declare-rel #{name} (#{joined_params}))\n")
+
+    # Prepend the new function to the current (head) scope
+    [current_scope | older_scopes] = state.scopes
+    new_scopes = [Scope.put_var(current_scope, name) | older_scopes]
+
+    {:reply, :ok, %{state | scopes: new_scopes}}
+  end
+
+  @impl true
+  def handle_call({:declare_var, name, type}, _from, state) do
+    Port.command(state.port, "(declare-var #{name} #{type})\n")
+
+    # Prepend the new function to the current (head) scope
+    [current_scope | older_scopes] = state.scopes
+    new_scopes = [Scope.put_var(current_scope, name) | older_scopes]
+
+    {:reply, Smt2.symbol(name), %{state | scopes: new_scopes}}
+  end
+
+
+  @impl true
+  def handle_call({:rule, body}, _from, state) do
+    smt2_code = "(rule #{body})"
+    Port.command(state.port, [smt2_code, "\n"])
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_call(:push, _from, state) do
     Port.command(state.port, "(push)\n")
 
@@ -222,6 +310,24 @@ defmodule Zee3.Solver do
   end
 
   @impl true
+  def handle_call({:eval_smt2_code, smt2_code}, from, state) do
+    payload = """
+    (echo "#{start_marker("eval_smt2_code")}")
+    #{smt2_code}
+    (echo "#{end_marker()}")
+    """
+
+    Port.command(state.port, payload)
+
+    {:noreply,
+     %{
+       state
+       | caller: from,
+         buffer: ""
+     }}
+  end
+
+  @impl true
   def handle_call(:check_sat_and_get_model, from, state) do
     # Flatten the stack for both variables and constructors
     _active_variables = Enum.flat_map(state.scopes, & &1.vars)
@@ -237,6 +343,24 @@ defmodule Zee3.Solver do
     (get-model)
     (echo "#{end_marker()}")
     """
+
+    Port.command(state.port, payload)
+
+    {:noreply,
+     %{
+       state
+       | caller: from,
+         buffer: ""
+     }}
+  end
+
+  @impl true
+  def handle_call({:query, name}, from, state) do
+    payload = """
+      (echo "#{start_marker("query")}")
+      (query #{name} :print-answer true)
+      (echo "#{end_marker()}")
+      """
 
     Port.command(state.port, payload)
 
@@ -314,6 +438,73 @@ defmodule Zee3.Solver do
   end
 
   # --- Internal Output Builder ---
+
+  defp build_response("eval_smt2_code", useful_nodes, _state) do
+    has_errors? =
+      Enum.any?(useful_nodes, fn smt2_node ->
+        case smt2_node do
+          %Smt2.List{value: [%Smt2.Symbol{value: "error"} | _args]} ->
+            true
+
+          _other ->
+            false
+        end
+      end)
+
+    if has_errors? do
+      {:error, useful_nodes}
+    else
+      {:ok, useful_nodes}
+    end
+  end
+
+  defp build_response("query", useful_nodes, state) do
+    errors =
+      Enum.filter(useful_nodes, fn smt2_node ->
+        case smt2_node do
+          %Smt2.List{value: [%Smt2.Symbol{value: "error"} | _args]} ->
+            true
+
+          _other ->
+            false
+        end
+      end)
+
+    if errors != [] do
+      serialized =
+        errors
+        |> Enum.map(&Smt2.serialize/1)
+        |> Enum.intersperse("\n")
+
+      raise "Zee3 error:\n\n#{serialized}"
+    end
+
+    [%Smt2.Symbol{value: satisfiability} | nodes] = useful_nodes
+
+    case {satisfiability, nodes} do
+      {"unsat", _} ->
+        {:ok, :unsat}
+
+      {"unknown", _} ->
+        {:ok, :unknown}
+
+      {"sat", rest} ->
+        solutions =
+          case rest do
+            # Multiple solutions, linked by a multi-arity disjunction
+            [%Smt2.List{value: [%Smt2.Symbol{value: "or"} | args]}] ->
+              args
+
+            # Single solution - no disjunction!
+            [other] ->
+              [other]
+          end
+
+        tuples = datalog_get_tuples(state, solutions)
+
+        {:ok, {:sat, tuples}}
+    end
+  end
 
   defp build_response("check_sat_and_get_model", useful_nodes, state) do
     [%Smt2.Symbol{value: satisfiability} | nodes] = useful_nodes
@@ -414,4 +605,67 @@ defmodule Zee3.Solver do
 
   # This function is the inverse of `start_marker(name)`
   defp tag_from_start_marker("!!!ZEE3-RESPONSE-START-" <> name), do: name
+
+  def raw_bit_vec32_from_integer(integer) do
+    <<integer::32>>
+  end
+
+  # ==================================================
+  # Datalog utilities
+  # ==================================================
+
+  def datalog_get_tuples(state, solutions) do
+    # Get the tuples for all the solutions.
+    # At this point, we can assume there is at least one solution,
+    # because we have checked for satisfiability before
+
+    rel_args =
+      for solution <- solutions do
+        args = parse_solution_into_rel_args(solution)
+        for arg <- args do
+          Map.fetch!(state.id_to_entity, arg)
+        end
+      end
+
+    # Turn the list of list into a list of tuples,
+    # which is usually easier to work with.
+    Enum.map(rel_args, &List.to_tuple/1)
+  end
+
+  def parse_solution_into_rel_args(solution) do
+    # Although this doesn't seem to be documented anywhere,
+    # the Z3 datalog engine returns solutions in a somwhat
+    # standardized format, in the form of logical expressions.
+    #
+    # If there are multiple solutions, it will return a disjunction
+    # of conjunctions, although both the disjunction and the conjunctions
+    # may be omitted if they aren't needed.
+    # The disjunction is omitted if there is only a single solution,
+    # and the conjunctions are omited if the relation has arity 1.
+    case solution do
+      # If there are more thatn one solution, the solutions will
+      # be grouped with a multi-arity conjunctions.
+      # We must then deconstruct the conjunction.
+      %Smt2.List{value: [%Smt2.Symbol{value: "and"} | assignments]} ->
+        for {assignment, index} <- Enum.with_index(assignments, 0) do
+          # Deconstruct the assignment
+          %Smt2.List{value: [%Smt2.Symbol{value: "="}, arg, value]} = assignment
+          # Ensure the format is what we expect
+          %Smt2.List{value: [%Smt2.Symbol{value: ":var"}, %Smt2.Int{value: ^index}]} = arg
+          # Get the raw bits for the entity
+          %Smt2.BitVec{value: bits} = value
+
+          bits
+        end
+
+      # If there is only one solution, it is not grouped by a
+      # conjunction; instead it has a single equality.
+      %Smt2.List{value: [%Smt2.Symbol{value: "="}, arg, value]} ->
+        # Ensure the format is what we expect
+        %Smt2.List{value: [%Smt2.Symbol{value: ":var"}, %Smt2.Int{value: 0}]} = arg
+        # Get the raw bits for the entity
+        %Smt2.BitVec{value: bits} = value
+        [bits]
+    end
+  end
 end

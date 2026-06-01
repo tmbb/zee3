@@ -69,6 +69,22 @@ defmodule Zee3.StdLib do
   end
 
   @doc """
+  Implication (left to right).
+  """
+  @spec implies(Smt2.smt2_like(), Smt2.smt2_like()) :: Smt2.t()
+  def implies(lhs, rhs) do
+    Smt2.call("=>", [lhs, rhs])
+  end
+
+  @doc """
+  Implication (right to left).
+  """
+  @spec (Smt2.smt2_like() <- Smt2.smt2_like()) :: Smt2.t()
+  def implied_by <- condition do
+    Smt2.call("=>", [condition, implied_by])
+  end
+
+  @doc """
   A reimplementation of the `Kernel.if/2` macro that
   raises an error if one tries to pick a branch based
   on a `Zee3.Smt2` value.

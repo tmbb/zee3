@@ -1,6 +1,6 @@
 defmodule Zee3 do
   @moduledoc """
-  Documentation for `Zee3`.
+  The main entry point for the `Zee3` functionality.
   """
 
   alias Zee3.Solver
@@ -18,7 +18,7 @@ defmodule Zee3 do
   end
 
   @doc """
-  Starts the stateful solver process.
+  Stops the stateful solver process.
   """
   @spec stop_solver(pid()) :: :ok
   def stop_solver(pid) do
@@ -39,6 +39,22 @@ defmodule Zee3 do
   @spec declare_fun(pid(), binary(), list(binary()), binary()) :: :ok
   def declare_fun(solver_pid, name, param_types, return_type) do
     Solver.declare_fun(solver_pid, name, param_types, return_type)
+  end
+
+  @doc """
+  Declares an relation for the fixpoint datalog engine.
+  """
+  @spec declare_rel(pid(), binary(), list(binary())) :: :ok
+  def declare_rel(solver_pid, name, param_types) do
+    Solver.declare_rel(solver_pid, name, param_types)
+  end
+
+  @doc """
+  Declares a variable which can be used in rules in the datalog engine.
+  """
+  @spec declare_var(pid(), binary(), binary()) :: :ok
+  def declare_var(solver_pid, name, param_types) do
+    Solver.declare_var(solver_pid, name, param_types)
   end
 
   @doc """
@@ -68,7 +84,7 @@ defmodule Zee3 do
   @doc """
   Pops the last context from a stateful solver.
   """
-  @spec push(pid()) :: :ok
+  @spec pop(pid()) :: :ok
   def pop(pid) do
     Solver.pop(pid)
   end
@@ -77,32 +93,75 @@ defmodule Zee3 do
   Check for satisfiability and get the model in case it is
   actually satisfiable.
   """
-  def check_sat_and_get_model(solver_pid, timeout \\ :infinity) do
-    Solver.check_sat_and_get_model(solver_pid, timeout)
+  @spec check_sat_and_get_model(pid(), keyword()) :: {:ok, any()} | {:error, any()}
+  def check_sat_and_get_model(solver_pid, opts \\ []) do
+    Solver.check_sat_and_get_model(solver_pid, opts)
   end
 
   @doc """
   Check for satisfiability and get the model in case it is
   actually satisfiable. *Raises on error*.
   """
-  def check_sat_and_get_model!(solver_pid, timeout \\ :infinity) do
-    Solver.check_sat_and_get_model!(solver_pid, timeout)
+  @spec check_sat_and_get_model!(pid(), keyword()) :: {:sat, any()} | :unsat | :unknown
+  def check_sat_and_get_model!(solver_pid, opts \\ []) do
+    Solver.check_sat_and_get_model!(solver_pid, opts)
   end
 
   @doc """
   Check for satisfiability and get the model in case it is
   actually satisfiable.
   """
-  def check_sat(solver_pid, timeout \\ :infinity) do
-    Solver.check_sat(solver_pid, timeout)
+  @spec check_sat(pid(), keyword()) :: {:ok, :sat | :unsat | :unknown} | {:error, any()}
+  def check_sat(solver_pid, opts \\ []) do
+    Solver.check_sat(solver_pid, opts)
   end
 
   @doc """
   Check for satisfiability and get the model in case it is
   actually satisfiable. *Raises on error*.
   """
-  def check_sat!(solver_pid, timeout \\ :infinity) do
-    Solver.check_sat!(solver_pid, timeout)
+  @spec check_sat(pid(), keyword()) :: :sat | :unsat | :unknown
+  def check_sat!(solver_pid, opts \\ []) do
+    Solver.check_sat!(solver_pid, opts)
+  end
+
+  @doc """
+  Query a datalog relation to return all valid pairs.
+  """
+  def query(solver_pid, opts \\ []) do
+    Solver.check_sat!(solver_pid, opts)
+  end
+
+  @doc """
+  Query a datalog relation to return all valid pairs. Raises on error.
+  """
+  def query!(solver_pid, opts \\ []) do
+    Solver.check_sat!(solver_pid, opts)
+  end
+
+  @doc """
+  Runs raw SMT-LIB2 code in the current solver.
+  Resturns `{:ok, data}` if there are no errors and
+  `{:error, data}` if there is at least an error.
+  The payload `data` is the raw output of the solver,
+  parsed into a list of `%Smt.XXX` values.
+  """
+  def eval_smt2_code(solver_pid, raw_smt2_code) do
+    Solver.eval_smt2_code(solver_pid, raw_smt2_code)
+  end
+
+  @doc """
+  Declares a rule for the datalog fixpoint engine.
+  """
+  def rule(solver_pid, body) do
+    Solver.entity_id(solver_pid, body)
+  end
+
+  @doc """
+  Return an entity id from a value
+  """
+  def entity_id(solver_pid, value) do
+    Solver.entity_id(solver_pid, value)
   end
 
   @doc """

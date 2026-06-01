@@ -73,7 +73,39 @@ defmodule Zee3.Smt2 do
   def to_smt2(x),
     do: raise("Can't convert #{inspect(x)} into an `Zee3.Smt2` value")
 
+  @spec bit_vec_from_integer(non_neg_integer(), pos_integer()) :: t()
+  def bit_vec_from_integer(integer, length) when integer > 0 do
+    value = <<integer :: size(length)>>
+    %Smt2.BitVec{value: value}
+  end
+
+  @spec bit_vec16_from_integer(non_neg_integer()) :: t()
+  def bit_vec16_from_integer(integer) when integer > 0 do
+    value = <<integer :: size(16)>>
+    %Smt2.BitVec{value: value}
+  end
+
+  @spec bit_vec32_from_integer(non_neg_integer()) :: t()
+  def bit_vec32_from_integer(integer) when integer > 0 do
+    value = <<integer :: size(32)>>
+    %Smt2.BitVec{value: value}
+  end
+
+  @spec bit_vec64_from_integer(non_neg_integer()) :: t()
+  def bit_vec64_from_integer(integer) when integer > 0 do
+    value = <<integer :: size(64)>>
+    %Smt2.BitVec{value: value}
+  end
+
+
   def serialize(x) do
     x |> to_smt2() |> Serializer.serialize()
+  end
+
+  def serialize_multiple(nodes) do
+    nodes
+    |> Enum.map(&serialize/1)
+    |> Enum.intersperse("\n")
+    |> IO.iodata_to_binary()
   end
 end

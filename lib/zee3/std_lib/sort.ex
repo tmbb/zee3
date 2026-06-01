@@ -90,4 +90,16 @@ defmodule Zee3.StdLib.Sort do
   def array(domain_sort, range_sort) do
     Smt2.call("Array", [domain_sort, range_sort])
   end
+
+  # ------- Custom ----------
+
+  @doc """
+  A special sort which serves as an alias for a BitVec of length 32.
+
+  This is meant to be used as the type of entity IDs for the datalog
+  engine, which needs a finite sort, and defaulting to a BitVec
+  of this size seems like a safe option.
+  """
+  @spec entity_id() :: Smt2.t()
+  def entity_id(), do: Smt2.call("_", [Smt2.symbol("BitVec"), Smt2.integer(32)])
 end
