@@ -2,6 +2,15 @@
 
 <!-- %% CHANGELOG_ENTRIES %% -->
 
+## 0.4.0 - 2026-06-01
+
+Add support for using the datalog engine that ships with Z3
+(μZ - An Efficient Engine for Fixed-Points with Constraints)
+by adding the `rule(...)`, `query(...)` and `query!(...)` functions.
+This also required adding support for the new `Zee3.Sort.entity_id()`
+sort and the `entity_id(...)` special function.
+
+
 ## 0.3.0 - 2026-05-04
 
 Add support for defining *real* Z33 functions using the `defzee3` macro from the `Zee3.Defzee3` module. These functions are real Z3 functions and not merely Elixir functions which expand into Z3 code.
