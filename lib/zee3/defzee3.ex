@@ -1,4 +1,36 @@
 defmodule Zee3.Defzee3 do
+  @moduledoc """
+  A module containing the functionality needed to define Z3 functions.
+
+  This module is based on the `defzee3` macro, which works like `def`
+  but actually defines a function which you can call inside a Z3 program.
+  These functions are real Z3 functions, and are expanded by Z3, and not
+  by Elixir. That is, the elixir code doesn't do any formn of `Zee3.Smt2`
+  expansion before sending the data to the Z3 process.
+
+  You need to use this module inside your own module:
+
+      defmodule MyApp.MyCustomZ3Lib do
+        use Zee3.Defzee3
+
+        defzee f(x, y) do
+          x*x*y + (1 - x)*y*y
+        end
+      end
+
+  You can then use the `MyApp.MyCustomZ3Lib` module inside your `Zee3.program`,
+  by using the module:
+
+      require Zee3
+
+      result =
+        Zee3.program pid do
+          use MyApp.MyCustomZ3Lib, with_alias: MyCustomZ3Lib
+          ...
+          assert f(x, y) == ...
+          ...
+        end
+  """
   alias Zee3.Defzee3.Zee3Def
 
   @doc """
