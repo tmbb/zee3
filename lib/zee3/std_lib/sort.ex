@@ -7,37 +7,69 @@ defmodule Zee3.StdLib.Sort do
   alias Zee3.Smt2
   import Zee3.Smt2
 
+  @type t :: Smt2.t()
+
   # --- Base Sorts (Symbols) ---
 
+  @doc """
+  A Z3 `Bool` sort.
+  """
   @spec bool() :: Smt2.t()
   def bool(), do: Smt2.symbol("Bool")
 
+  @doc """
+  A Z3 `Int` sort.
+  """
   @spec int() :: Smt2.t()
   def int(), do: Smt2.symbol("Int")
 
+  @doc """
+  A Z3 `Real` sort.
+  """
   @spec real() :: Smt2.t()
   def real(), do: Smt2.symbol("Real")
 
+  @doc """
+  A Z3 `String` sort.
+  """
   @spec string() :: Smt2.t()
   def string(), do: Smt2.symbol("String")
 
+  @doc """
+  A Z3 `RegLang` (regular language) sort.
+  """
   @spec reg_lan() :: Smt2.t()
   def reg_lan(), do: Smt2.symbol("RegLan")
 
+  @doc """
+  A Z3 `RoundingMode` sort.
+  """
   @spec rounding_mode() :: Smt2.t()
   def rounding_mode(), do: Smt2.symbol("RoundingMode")
 
   # --- Floating Point Aliases (Symbols) ---
 
+  @doc """
+  A Z3 `Float16` (16-bit float) sort.
+  """
   @spec float16() :: Smt2.t()
   def float16(), do: Smt2.symbol("Float16")
 
+  @doc """
+  A Z3 `Float32` (32-bit float) sort.
+  """
   @spec float32() :: Smt2.t()
   def float32(), do: Smt2.symbol("Float32")
 
+  @doc """
+  A Z3 `Float64` (64-bit float) sort.
+  """
   @spec float64() :: Smt2.t()
   def float64(), do: Smt2.symbol("Float64")
 
+  @doc """
+  A Z3 `Float128` (128-bit float) sort.
+  """
   @spec float128() :: Smt2.t()
   def float128(), do: Smt2.symbol("Float128")
 

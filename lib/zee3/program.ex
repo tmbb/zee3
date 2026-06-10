@@ -191,7 +191,17 @@ defmodule Zee3.Program do
             apply(Zee3.Solver, unquote(action), [unquote(pid), serialized])
           end
 
-        # 4. Fallback: Leave all other Elixir code (for, if, assignments) completely untouched!
+        {:if, meta, _args} = ast ->
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            unquote(rewrite_if_statement(ast))
+          end
+
+        {:for, meta, _args} = ast ->
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            unquote(rewrite_for_comprehension(ast))
+          end
+
+        # 4. Fallback: Leave all other Elixir code (assignments, etc) completely untouched!
         other ->
           other
       end)
@@ -202,12 +212,47 @@ defmodule Zee3.Program do
     quote do
       (
         fn ->
-          # Make the default Zee3 functions available and hide
-          # the Kernel functions with the same name
-          use Zee3.StdLib
-          unquote(transformed_block)
+          # Save the previous PID just in case these blocks are nested
+          previous_pid = Process.get(:zee3_z3_pid)
+          Process.put(:zee3_z3_pid, unquote(pid))
+
+          try do
+            use Zee3.StdLib
+            unquote(transformed_block)
+          after
+            # Cleanup after the block runs
+            if previous_pid do
+              Process.put(:zee3_z3_pid, previous_pid)
+            else
+              Process.delete(:zee3_z3_pid)
+            end
+          end
         end
       ).()
     end
+  end
+
+  defp rewrite_if_statement({:if, m1, [condition | args]}) do
+    {:if, m1, [quote(do: elixir(unquote(condition))) | args]}
+  end
+
+  defp rewrite_for_comprehension({:for, m1, args}) do
+    updated_args =
+      for arg <- args do
+        case arg do
+          {:<-, m2, [lhs, rhs]} ->
+            {:<-, m2, [lhs, quote(do: elixir(unquote(rhs)))]}
+
+
+          # The final keyword list (e.g. `[into: ..., do: ...]`)
+          other when is_list(other) ->
+            other
+
+          predicate ->
+            quote(do: elixir(unquote(predicate)))
+        end
+      end
+
+    {:for, m1, updated_args}
   end
 end

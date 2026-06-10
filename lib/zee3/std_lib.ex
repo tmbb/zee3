@@ -14,6 +14,7 @@ defmodule Zee3.StdLib do
   """
   require Zee3.StdLib.StdLibBuilder, as: StdLibBuilder
   alias Zee3.Smt2
+  import Zee3.Smt2, only: [is_smt2: 1]
 
   StdLibBuilder.__build_from_tsv_file__("lib/zee3/reference/functions.tsv")
 
@@ -61,11 +62,42 @@ defmodule Zee3.StdLib do
   end
 
   @doc """
-  Checks that all the arguments are distinct.
+  Check that all the arguments are distinct.
+
+  Just like the `!=` operator compiles into the
+  Z3 binary `(distinct x1 x2)` operator, this
+  function compiles to the variadic `(distinct ...)`
+  operator
   """
   @spec all_distinct(list(Smt2.smt2_like())) :: Smt2.t()
   def all_distinct([_x1, _x2 | _args] = args) do
     Smt2.call("distinct", args)
+  end
+
+  @doc """
+  Checks that all arguments are true.
+
+  Just like the `and` operator compiles into the
+  Z3 binary `(and x1 x2)` operator, this
+  function compiles to the variadic `(and ...)`
+  operator
+  """
+  @spec all(list(Smt2.smt2_like())) :: Smt2.t()
+  def all([_x1 | _args] = args) do
+    Smt2.call("and", args)
+  end
+
+  @doc """
+  Checks that at least one of the arguments is true.
+
+  Just like the `or` operator compiles into the
+  Z3 binary `(or x1 x2)` operator, this
+  function compiles to the variadic `(or ...)`
+  operator
+  """
+  @spec any(list(Smt2.smt2_like())) :: Smt2.t()
+  def any([_x1 | _args] = args) do
+    Smt2.call("or", args)
   end
 
   @doc """
@@ -103,10 +135,10 @@ defmodule Zee3.StdLib do
   it behaves exactly as the `Kernel.if/2` macro.
   """
   defmacro if(condition, branches) do
-    quote do
+    quote [generated: true] do
       condition = unquote(condition)
 
-      cond condition do
+      case condition do
         c when is_smt2(c) ->
           raise "Can't use `if` on an Zee3.Smt2 value." <>
             " You are probabbly making a mistake." <>
@@ -140,6 +172,7 @@ defmodule Zee3.StdLib do
           div: 2,
           mod: 2,
           abs: 1,
+          elixir: 1,
           # We implement "safer" versions of these macros
           # which error out if the user confuses them with
           # Z3 functions
@@ -148,6 +181,27 @@ defmodule Zee3.StdLib do
 
       import Zee3.StdLib
       alias Zee3.StdLib.Sort
+    end
+  end
+
+  @doc """
+  Compiles the code given as an argument using the `Kernel`
+  operations and functions and not the `zee3.StdLib` versions.
+
+  The code inside is run as if it is "normal elixir code",
+  by the BEAM and not as if it were Z3 code run inside the
+  Z3 solver.
+  """
+  defmacro elixir(formula) do
+    quote do
+      (
+        fn ->
+          # Hide the Zee3.StdLib imports
+          import Zee3.StdLib, only: []
+          import Kernel
+          unquote(formula)
+        end
+      ).()
     end
   end
 end

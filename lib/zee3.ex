@@ -154,7 +154,7 @@ defmodule Zee3 do
   Declares a rule for the datalog fixpoint engine.
   """
   def rule(solver_pid, body) do
-    Solver.entity_id(solver_pid, body)
+    Solver.rule(solver_pid, body)
   end
 
   @doc """
@@ -162,6 +162,16 @@ defmodule Zee3 do
   """
   def entity_id(solver_pid, value) do
     Solver.entity_id(solver_pid, value)
+  end
+
+  @doc """
+  Gets the PID for the current Z3 process.
+  This function only works if called inside a function
+  that was invokes inside a `Zee3.program/2` block.
+  """
+  def current_z3_pid! do
+    Process.get(:zee3_z3_pid) ||
+      raise "Zee3 function called outside of a Zee3.program block!"
   end
 
   @doc """

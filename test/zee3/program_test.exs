@@ -259,6 +259,40 @@ defmodule Zee3.ProgramTest do
     assert result == :sat
   end
 
+  test "arithmetic operations in for comprehension bounds", %{solver: solver} do
+    max_size = 10
+
+    _discard =
+      Zee3.program solver do
+        # The following arithmetic expression works correctly
+        for i <- 0..(max_size - 1) do
+          slot = declare_const("slot_#{i}", Sort.int())
+          # We can use normal kernel operators in the condition
+          # of if statements without aliases
+          if i != 7 do
+            assert slot == 1
+          end
+        end
+      end
+  end
+
+  test "the elixir macro aplied to itself causes no problemss", %{solver: solver} do
+    max_size = 10
+
+    _discard =
+      Zee3.program solver do
+        # The following arithmetic expression works correctly
+        for i <- 0..(max_size - 1) do
+          slot = declare_const("slot_#{i}", Sort.int())
+          # We can use normal kernel operators in the condition
+          # of if statements without aliases
+          if i != 7 do
+            assert slot == 1
+          end
+        end
+      end
+  end
+
   defmodule AltLib do
     use Zee3.Defzee3
     use Zee3.StdLib

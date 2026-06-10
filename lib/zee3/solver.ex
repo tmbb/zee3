@@ -80,6 +80,9 @@ defmodule Zee3.Solver do
     GenServer.call(pid, :pop)
   end
 
+  @doc """
+  Check the Z3 program for satisfiability and returns the model.
+  """
   def check_sat_and_get_model(pid, opts \\ []) do
     timeout = timeout_from_opts(opts)
     GenServer.call(pid, :check_sat_and_get_model, timeout)
