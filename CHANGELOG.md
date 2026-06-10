@@ -2,6 +2,15 @@
 
 <!-- %% CHANGELOG_ENTRIES %% -->
 
+## 0.5.0 - 2026-06-10
+
+Added the following functionality:
+
+  * Variadic `and` and variadic `or` operators (named `all/1` and `any/1`, respectively)
+  * Add an implementation of finite sets based on existing theories (i.e. it doesn't
+    define a new thoeory of objects that satisfy the axioms of set theory)
+
+
 ## 0.4.0 - 2026-06-01
 
 Add support for using the datalog engine that ships with Z3

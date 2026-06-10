@@ -4,7 +4,7 @@ defmodule Zee3.MixProject do
   def project do
     [
       app: :zee3,
-      version: "0.4.0",
+      version: "0.5.0",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       compilers: Mix.compilers() ++ [:zee3],
