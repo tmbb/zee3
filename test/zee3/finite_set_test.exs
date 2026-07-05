@@ -103,6 +103,8 @@ defmodule Zee3.FiniteSetTest do
       end
   end
 
+  alias Zee3.StdLib.FiniteSet
+
   test "declare a set of bit vectors", %{solver: solver} do
     {:sat, model} =
       Zee3.program solver do

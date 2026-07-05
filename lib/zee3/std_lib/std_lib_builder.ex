@@ -7,7 +7,7 @@ defmodule Zee3.StdLib.StdLibBuilder do
   end
 
   @function_blacklist ~w(= => true false)
-  @infix_operators ~w(and not < > <= >= + - * /)
+  @infix_operators ~w(and or not < > <= >= + - * /)
 
   defp rename_problematic("re.++"), do: "re_concat"
   defp rename_problematic("re.*"), do: "re_kleene_star"

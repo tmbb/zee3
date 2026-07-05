@@ -1,5 +1,13 @@
 defmodule Zee3.Solver do
-  @moduledoc false
+  @moduledoc """
+  API to send commands to the solver.
+
+  The `Zee3.program/2` macro can do anything the funcions
+  in this module can do, but sometimes, when we're using
+  the solver interactively and performing complex algorithms
+  outside the solver, using this lower level functions is clearer.
+  """
+
   use GenServer
 
   alias Zee3.Smt2
@@ -13,32 +21,54 @@ defmodule Zee3.Solver do
             id_to_entity: %{},
             scopes: [Scope.empty()]
 
-  defp timeout_from_opts(opts) do
-    Keyword.get(opts, :timeout, :infinity)
-  end
-
   # --- Client API ---
 
+  @doc """
+  Start a Zee3 solver process.
+  """
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, [])
   end
 
-  def declare_const(pid, name, type_string) when is_binary(type_string) do
-    GenServer.call(pid, {:declare_const, name, type_string})
+  @doc """
+  Declare an uninterpreted constant.
+  """
+  def declare_const(pid, name, type) do
+    GenServer.call(pid, {:declare_const, name, type})
   end
 
+  @doc """
+  Declare an uninterpreted sort.
+  """
+  def declare_sort(pid, name) when is_binary(name) do
+    GenServer.call(pid, {:declare_sort, name})
+  end
+
+  @doc """
+  Declare an uninterpreted function.
+  """
   def declare_fun(pid, name, param_types, return_type) do
     GenServer.call(pid, {:declare_fun, name, param_types, return_type})
   end
 
+  @doc """
+  Declare a datalog relation.
+  """
   def declare_rel(pid, name, param_types) do
     GenServer.call(pid, {:declare_rel, name, param_types})
   end
 
+
+  @doc """
+  Declare a variable for use in datalog rules.
+  """
   def declare_var(pid, name, type) do
     GenServer.call(pid, {:declare_var, name, type})
   end
 
+  @doc """
+  Define a new datalog rule.
+  """
   def rule(pid, body) do
     GenServer.call(pid, {:rule, body})
   end
@@ -58,7 +88,8 @@ defmodule Zee3.Solver do
   end
 
   def assert(pid, constraint) do
-    GenServer.cast(pid, {:send, "(assert #{constraint})"})
+    serialized_constraint = Smt2.serialize(constraint)
+    GenServer.cast(pid, {:send, "(assert #{serialized_constraint})"})
   end
 
   def entity_id(pid, value) do
@@ -88,6 +119,10 @@ defmodule Zee3.Solver do
     GenServer.call(pid, :check_sat_and_get_model, timeout)
   end
 
+  @doc """
+  Check the Z3 program for satisfiability and returns the model.
+  Raises on error.
+  """
   def check_sat_and_get_model!(pid, opts \\ []) do
     case check_sat_and_get_model(pid, opts) do
       {:ok, result} ->
@@ -97,13 +132,41 @@ defmodule Zee3.Solver do
     end
   end
 
+  @doc """
+  Check the Z3 program for satisfiability.
+  """
   def check_sat(pid, opts \\ []) do
     timeout = timeout_from_opts(opts)
     GenServer.call(pid, :check_sat, timeout)
   end
 
+  @doc """
+  Check the Z3 program for satisfiability. Raises on error.
+  """
   def check_sat!(pid, opts \\ []) do
     case check_sat(pid, opts) do
+      {:ok, result} ->
+        result
+
+      # TODO: add the error branch
+    end
+  end
+
+  @doc """
+  Check the Z3 program for satisfiability assuming a number
+  of assumptions.
+  """
+  def check_sat_assuming(pid, assumptions, opts \\ []) do
+    timeout = timeout_from_opts(opts)
+    GenServer.call(pid, {:check_sat_assuming, assumptions}, timeout)
+  end
+
+  @doc """
+  Check the Z3 program for satisfiability assuming a number
+  of assumptions.
+  """
+  def check_sat_assuming!(pid, assumptions, opts \\ []) do
+    case check_sat_assuming(pid, assumptions, opts) do
       {:ok, result} ->
         result
 
@@ -237,7 +300,11 @@ defmodule Zee3.Solver do
 
   @impl true
   def handle_call({:declare_const, name, type}, _from, state) do
-    Port.command(state.port, "(declare-const #{name} #{type})\n")
+    smt2_code =
+      Smt2.call("declare-const", [Smt2.symbol(name), type])
+      |> Smt2.serialize()
+
+    Port.command(state.port, smt2_code)
 
     # Prepend the new variable to the current (head) scope
     [current_scope | older_scopes] = state.scopes
@@ -246,10 +313,23 @@ defmodule Zee3.Solver do
     {:reply, :ok, %{state | scopes: new_scopes}}
   end
 
+  def handle_call({:declare_sort, name}, _from, state) do
+    smt2_code =
+      Smt2.call("declare-fun", [Smt2.symbol(name)])
+      |> Smt2.serialize()
+
+    Port.command(state.port, smt2_code)
+
+    {:reply, :ok, state}
+  end
+
   @impl true
   def handle_call({:declare_fun, name, params, ret_type}, _from, state) do
-    joined_params = Enum.join(params, " ")
-    Port.command(state.port, "(declare-fun #{name} (#{joined_params}) #{ret_type})\n")
+    smt2_code =
+      Smt2.call("declare-fun", [Smt2.symbol(name), Smt2.list(params), ret_type])
+      |> Smt2.serialize()
+
+    Port.command(state.port, smt2_code)
 
     # Prepend the new function to the current (head) scope
     [current_scope | older_scopes] = state.scopes
@@ -260,8 +340,11 @@ defmodule Zee3.Solver do
 
   @impl true
   def handle_call({:declare_rel, name, params}, _from, state) do
-    joined_params = Enum.join(params, " ")
-    Port.command(state.port, "(declare-rel #{name} (#{joined_params}))\n")
+    smt2_code =
+      Smt2.call("declare-rel", [Smt2.symbol(name), Smt2.list(params)])
+      |> Smt2.serialize()
+
+    Port.command(state.port, smt2_code)
 
     # Prepend the new function to the current (head) scope
     [current_scope | older_scopes] = state.scopes
@@ -272,7 +355,11 @@ defmodule Zee3.Solver do
 
   @impl true
   def handle_call({:declare_var, name, type}, _from, state) do
-    Port.command(state.port, "(declare-var #{name} #{type})\n")
+    smt2_code =
+      Smt2.call("declare-var", [Smt2.symbol(name), type])
+      |> Smt2.serialize()
+
+    Port.command(state.port, smt2_code)
 
     # Prepend the new function to the current (head) scope
     [current_scope | older_scopes] = state.scopes
@@ -281,10 +368,9 @@ defmodule Zee3.Solver do
     {:reply, Smt2.symbol(name), %{state | scopes: new_scopes}}
   end
 
-
   @impl true
   def handle_call({:rule, body}, _from, state) do
-    smt2_code = "(rule #{body})"
+    smt2_code = Smt2.call("rule", [body]) |> Smt2.serialize()
     Port.command(state.port, [smt2_code, "\n"])
 
     {:reply, :ok, state}
@@ -388,6 +474,29 @@ defmodule Zee3.Solver do
     payload = """
     (echo "#{start_marker("check_sat")}")
     (check-sat)
+    (echo "#{end_marker()}")
+    """
+
+    Port.command(state.port, payload)
+
+    {:noreply,
+     %{
+       state
+       | caller: from,
+         buffer: ""
+     }}
+  end
+
+  @impl true
+  def handle_call({:check_sat_assuming, assumptions}, from, state) do
+    terms =
+      assumptions
+      |> Enum.map(&Smt2.serialize/1)
+      |> Enum.intersperse(" ")
+
+    payload = """
+    (echo "#{start_marker("check_sat_assuming")}")
+    (check-sat-assuming (#{terms}))
     (echo "#{end_marker()}")
     """
 
@@ -552,6 +661,21 @@ defmodule Zee3.Solver do
     end
   end
 
+  defp build_response("check_sat_assuming", useful_nodes, _state) do
+    [%Smt2.Symbol{value: satisfiability} | _nodes] = useful_nodes
+
+    case satisfiability do
+      "unsat" ->
+        {:ok, :unsat}
+
+      "unknown" ->
+        {:ok, :unknown}
+
+      "sat" ->
+        {:ok, :sat}
+    end
+  end
+
   # --- Declaration Extractors ---
 
   # Match Constants: (define-fun name () Type Body)
@@ -670,5 +794,9 @@ defmodule Zee3.Solver do
         %Smt2.BitVec{value: bits} = value
         [bits]
     end
+  end
+
+  defp timeout_from_opts(opts) do
+    Keyword.get(opts, :timeout, :infinity)
   end
 end

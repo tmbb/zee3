@@ -1,6 +1,9 @@
 defmodule Zee3.Program do
   @moduledoc false
 
+  # TODO: add a "recording" mode where one can record the commands
+  # as Smt2 structures and print them to a file.
+
   @arity_0_pid_calls [
     :push,
     :pop
@@ -55,11 +58,44 @@ defmodule Zee3.Program do
             Zee3.Solver.declare_const(
               unquote(pid),
               name,
-              Zee3.Smt2.serialize(unquote(type))
+              unquote(type)
             )
 
             # Return the SMT Symbol so the user can bind it
             %Zee3.Smt2.Symbol{value: name}
+          end
+
+        {:declare_sort, meta, [name]} ->
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            name = unquote(name)
+            Zee3.Solver.declare_sort(
+              unquote(pid),
+              name
+            )
+
+            # Return the SMT Symbol so the user can bind it
+            %Zee3.Smt2.Symbol{value: name}
+          end
+
+        {:declare_finite_sort, meta, [name, alternatives]} ->
+
+          quote [line: Keyword.get(meta, :line), location: :keep] do
+            name = unquote(name)
+            alternatives = unquote(alternatives)
+            variants = Enum.map(alternatives, &Zee3.Smt2.symbol/1)
+            declaration =
+              Zee3.Smt2.call("declare-datatypes", [
+                Zee3.Smt2.list([]),
+                Zee3.Smt2.list([Zee3.Smt2.call(name, variants)])
+              ])
+
+            Zee3.Solver.eval_smt2_code(
+              unquote(pid),
+              Zee3.Smt2.serialize(declaration)
+            )
+
+            # Return the SMT Symbol so the user can bind it
+            {%Zee3.Smt2.Symbol{value: name}, variants}
           end
 
         # (Do the exact same name extraction for functions)
@@ -98,15 +134,11 @@ defmodule Zee3.Program do
           # is happening.
 
           quote [line: Keyword.get(meta, :line), location: :keep] do
-            name = unquote(name)
-            args = unquote(args)
-            ret_type = unquote(ret_type)
-
             Zee3.Solver.declare_fun(
               unquote(pid),
-              name,
-              Enum.map(args, &Zee3.Smt2.serialize/1),
-              Zee3.Smt2.serialize(ret_type)
+              unquote(name),
+              unquote(args),
+              unquote(ret_type)
             )
 
             # Return an anonymous function the user can bind
@@ -149,13 +181,10 @@ defmodule Zee3.Program do
           # is happening.
 
           quote [line: Keyword.get(meta, :line), location: :keep] do
-            name = unquote(name)
-            args = unquote(args)
-
             Zee3.Solver.declare_rel(
               unquote(pid),
-              name,
-              Enum.map(args, &Zee3.Smt2.serialize/1)
+              unquote(name),
+              unquote(args)
             )
 
             # Return an anonymous function the user can bind
@@ -165,8 +194,7 @@ defmodule Zee3.Program do
         {:declare_var, meta, [name, type]} ->
           quote [line: Keyword.get(meta, :line), location: :keep] do
             name = unquote(name)
-            type = Zee3.Smt2.serialize(unquote(type))
-            Zee3.Solver.declare_var(unquote(pid), name, type)
+            Zee3.Solver.declare_var(unquote(pid), name, unquote(type))
             # Return the name of the variable so we can bind it to something
             Zee3.Smt2.symbol(name)
           end
@@ -186,9 +214,7 @@ defmodule Zee3.Program do
         # This catches asserts anywhere in the tree!
         {action, meta, [expr]} when action in [:assert, :maximize, :minimize, :rule] ->
           quote [line: Keyword.get(meta, :line), location: :keep] do
-            ast = unquote(expr)
-            serialized = Zee3.Smt2.serialize(ast)
-            apply(Zee3.Solver, unquote(action), [unquote(pid), serialized])
+            apply(Zee3.Solver, unquote(action), [unquote(pid), unquote(expr)])
           end
 
         {:if, meta, _args} = ast ->
